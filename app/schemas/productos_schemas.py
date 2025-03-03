@@ -1,7 +1,8 @@
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, List
 from enum import Enum
-
+from app.models.materia_prima_recetas import MateriaPrimaRecetas
+from .materia_schemas import IngredienteSchema
 
 class Categoria(str, Enum):
     PLATO = "PLATO"
@@ -11,37 +12,48 @@ class Tipo(str, Enum):
     HECHO = "HECHO",
     COMPRADO = "COMPRADO"
 
+class MateriaPrimaRecetaInsert(BaseModel):
+    materia_prima_id: int
+    cantidad_ingridiente: float
+
+class ProductoBase(BaseModel):
+    nombre: str
+    cantidad: int
+    categoria: Categoria
+    stock_minimo: int
+    tipo: Tipo
+    precio_unitario: int
+    id_usuario: int
+    materias_primas: Optional[List[MateriaPrimaRecetas]] = None
+    ruta_imagen: Optional[str]
+    class Config:
+        arbitrary_types_allowed = True
 
 class EliminarProductoRequest(BaseModel):
     idProductoaEliminar: int
     contraseñaProporcionada: str
 
-class ProductoBase(BaseModel):
-    nombre: str
-    cantidad: int
-    descripcion: str
-    categoria: Categoria
-    tipo: Tipo
-    precio_unitario: int
-
 class ProductoDTO(BaseModel):
-    nombre: str
+    id: int
+    nombre: str 
     cantidad: int
-    descripcion: str
+    stock_minimo: int
     categoria: Categoria
-    tipo: Tipo
+    # tipo: Tipo
     precio_unitario: int
     ruta_imagen: Optional[str]
     id_usuario: int
 
-class ProductoResponse(ProductoBase):
+class ProductoCreate(BaseModel):
     nombre: str
     cantidad: int
-    descripcion: str
     categoria: Categoria
+    precio_unitario: float
+    id_usuario: int
     tipo: Tipo
-    precio_unitario: int
-    ruta_imagen: Optional[str]
+    stock_minimo: int
+    ruta_imagen: Optional[str] = None
+    ingredientes: Optional[List[IngredienteSchema]] = None
 
     class Config:
         from_attributes = True

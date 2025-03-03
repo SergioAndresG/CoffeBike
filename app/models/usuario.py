@@ -16,12 +16,8 @@ class Usuarios(base):
     subrol = Column(Enum(SubRol), nullable=True)
     ruta_imagen = Column(String(100), nullable=True)
 
-
     # Relación con Productos (un usuario puede tener muchos productos)
     productos = relationship("Productos", back_populates="usuario")
-    
-    # Relación con Recetas (un usuario puede tener muchas recetas)
-    recetas = relationship("Receta", back_populates="usuarios")
     
     # Relación con Facturas (un usuario puede generar muchas facturas)
     facturas = relationship("Factura", back_populates="usuarios")
