@@ -6,4 +6,3 @@ from .productos import Productos
 from .materia_prima import MateriaPrima  
 from .materia_prima_recetas import MateriaPrimaRecetas
 from .unidad_medida import UnidadMedida
-

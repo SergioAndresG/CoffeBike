@@ -54,6 +54,7 @@ class ProductoCreate(BaseModel):
     stock_minimo: int
     ruta_imagen: Optional[str] = None
     ingredientes: Optional[List[IngredienteSchema]] = None
+    
 
     class Config:
         from_attributes = True

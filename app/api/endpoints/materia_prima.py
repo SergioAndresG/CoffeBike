@@ -59,22 +59,24 @@ def enviar_alerta_materia(item, db):
 
 
 # endpoints materia prima
-@router_materia.get("/")
+@router_materia.get("/", response_model=list[MateriaPrimaBase])
 async def consultar(db: session = Depends(get_db)):
     # Aquí se consulta la base de datos usando SQLAlchemy
-    materia = db.query(MateriaPrima).all()  
-    return materia
+    materias = db.query(MateriaPrima).all()  
 
+    for materia in materias:
+        materia.fecha_ingreso = materia.fecha_ingreso.isoformat()
+        materia.fecha_vencimiento = materia.fecha_vencimiento.isoformat()
+
+    return materias
 
 @router_materia.get("/unidades-medida")
 async def abtener_medidas(db:session = Depends(get_db)):
     unidades = db.query(UnidadMedida).all()
     return unidades
 
-
 @router_materia.get("/materia-disponible", response_model=List[dict])
 async def obtener_disponibles(db: session = Depends(get_db)):
-
     materia_prima = db.query(MateriaPrima).all()
 
     resultado = []
@@ -86,7 +88,6 @@ async def obtener_disponibles(db: session = Depends(get_db)):
             "cantidad_disponible": float(mp.cantidad),
             "ruta_imagen": mp.ruta_imagen
         })
-
     return resultado
 
 
