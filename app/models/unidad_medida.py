@@ -20,7 +20,6 @@ class UnidadMedida(base):
         - Para volumen --> convierte a miligramos
         - Para las unidades no hay factor de conversion (el factor siempre sera 1)
         """
-
         return cantidad * self.factor_conversion
     
     def convertir_desde_base(self, cantidad_base):
@@ -30,7 +29,6 @@ class UnidadMedida(base):
         - Para volumen --> convierte desde mililitros
         - Para unidades --> no hay conversion (factor siempre es 1)
         """
-
         return cantidad_base / self.factor_conversion
     
 

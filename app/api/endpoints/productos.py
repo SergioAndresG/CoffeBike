@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, FastAPI, Depends, Form, UploadFile, File
+from fastapi import APIRouter, HTTPException, FastAPI, Depends, Form, UploadFile, File, BackgroundTasks
 from typing import Optional
 from app.conexion import get_db
 from app.models.usuario import Usuarios
@@ -8,12 +8,24 @@ from app.models.detalle_factura import DetalleFactura
 from app.models.materia_prima_recetas import MateriaPrimaRecetas
 from app.models.materia_prima import MateriaPrima
 from app.models.unidad_medida import UnidadMedida
-from app.schemas.productos_schemas import ProductoBase, ProductoDTO, ProductoCreate, EliminarProductoRequest, Categoria, Tipo
+from app.schemas.productos_schemas import ProductoBase, ProductoDTO, ProductoUpdate,ProductoCreate, EliminarProductoRequest, Categoria, Tipo
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import session
 from fastapi.middleware.cors import CORSMiddleware
 import json
+import os
+import pickle
+import base64
+import traceback
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+from google.oauth2.credentials import Credentials
+from google_auth_oauthlib.flow import InstalledAppFlow
+from google.auth.transport.requests import Request
+from googleapiclient.discovery import build
+from decimal import Decimal
+from app.schemas.alerta_schemas import EmailRequest
 
 app = FastAPI()
 
@@ -30,6 +42,10 @@ app.add_middleware(
 
 
 #ENPOINTS PRODUCTOS 
+@router_productos.get("/categorias")
+async def obtener_categorias(db: session = Depends(get_db)):
+    return [categoria.value for categoria in Categoria]
+
 @router_productos.get("/")
 async def consultar(db: session = Depends(get_db)):
     # Aquí se consulta la base de datos usando SQLAlchemy
@@ -112,7 +128,7 @@ async def agregar_producto(
         )
         db.add(producto)
         db.commit()
-        db.refresh(producto)  # Asegura que producto.id esté disponible
+        db.refresh(producto) # Asegura que producto.id esté disponible
         #  Guardar los ingredientes ahora que el producto está confirmado**
         if tipo == Tipo.HECHO:
             for ingrediente in ingredientes_list:
@@ -191,29 +207,29 @@ async def agregar_producto(
         raise HTTPException(status_code=400, detail=f"Error al guardar producto: {str(e)}")
 
 
+@router_productos.patch("/{id}", response_model=ProductoDTO)
+def actualizar_producto(id: int, producto: ProductoUpdate, db: session = Depends(get_db)):
+        # Imprimir los datos recibidos para depuración
+        print("Datos recibidos:", producto.dict(exclude_unset=True))
+        
+        # Buscar el producto por ID
+        producto_existente = db.query(Productos).filter(Productos.id == id).first()
+        if not producto_existente:
+            raise HTTPException(
+                status_code=404, detail="Producto no encontrado")
+    
+        # Convertir los datos a un diccionario, excluyendo valores no establecidos
+        producto_data = producto.dict(exclude_unset=True)
 
-@router_productos.put("/{id}", response_model=ProductoDTO)
-def actualizar_producto(id: int, producto: ProductoDTO, db: session = Depends(get_db)):
+        for campo, valor in producto_data.items():
+            if valor is not None:
+                setattr(producto_existente, campo, valor)
+    
+        db.commit()
+        db.refresh(producto_existente)
 
-    # Buscar el producto por ID
-    producto_existente = db.query(Productos).filter(Productos.id == id).first()
-    if not producto_existente:
-        raise HTTPException(
-            status_code=404, detail="Usuario no encontrado")
+        return producto_existente
 
-    # Actualizar los campos del producto
-    producto_existente.nombre = producto.nombre
-    producto_existente.cantidad = producto.cantidad     
-    producto_existente.categoria = Categoria(producto.categoria)
-    producto_existente.precio_unitario = producto.precio_unitario
-    producto_existente.id_usuario = producto.id_usuario
-    #producto_existente.tipo = producto.tipo
-    producto_existente.stock_minimo = producto.stock_minimo
-
-    db.commit()
-    db.refresh(producto_existente)
-
-    return producto_existente
 
 
 @router_productos.delete("/eliminar")
@@ -279,3 +295,68 @@ def obtener_producto_por_nombre(nombre: str, db: session = Depends(get_db)):
         raise HTTPException(status_code=404, detail=f"Producto no encontrado con ese nombre: {nombre}")
     
     return producto
+
+SCOPES = ['https://www.googleapis.com/auth/gmail.send']
+TOKEN_PATH = 'token.pickle'
+CREDENTIALS_PATH = 'credentials.json'
+
+def get_email_service():
+    creds = None
+    #Intenta guardar las credenciales guardadas
+    if os.path.exists(TOKEN_PATH):
+        with open(TOKEN_PATH, 'rb') as token:
+            creds = pickle.load(token)
+
+    #si no hay credenciales validas disponibles, deja que el usuario inicie sesion
+    if not creds or not creds.valid:
+        if creds and creds.expired and creds.refresh_token:
+            creds.refresh(Request())
+        else:
+            flow = InstalledAppFlow.from_client_secrets_file(CREDENTIALS_PATH,SCOPES)
+            creds = flow.run_local_server(port=0)
+
+        #Guarda las credenciales para la proxima vez 
+        with open(TOKEN_PATH, 'wb') as token:
+            pickle.dump(creds, token)
+    return build('gmail', 'v1', credentials=creds)
+
+def create_message(sender, to, subject, message_text):
+    message=MIMEMultipart()
+    message['to']=to
+    message['from']=sender
+    message['subject']=subject
+
+    #Agregar el texto del correo
+    msg = MIMEText(message_text, 'html')
+    message.attach(msg)
+
+    #codificar el mensaje en base64
+    raw_message = base64.urlsafe_b64encode(message.as_string().encode('utf-8')).decode('utf-8')
+    return {'raw':str(raw_message)}
+
+
+def send_message(service,user_id,message):
+    try:
+        message=service.users().messages().send(userId=user_id,body=message).execute()
+        return message
+    except Exception as e:
+         raise HTTPException(status_code=500, detail=f"Error al enviar el correo: {str(e)}")
+
+async def send_email_task(email_request:EmailRequest):
+    try:
+        service=get_email_service()
+        sender="sergiogarcia3421@gmail.com"
+        message=create_message(sender,email_request.to_email, email_request.subject, email_request.message)
+        send_message(service,"me",message)
+    except Exception as e:
+        print(f"Error en tarea de segundo plano: {e}")
+        traceback.print_exc()
+
+@router_productos.post("/send-email")
+async def send_email(emailRequest:EmailRequest,background_tasks:BackgroundTasks):
+    try:
+        #enviar los correos en segundo plano para no bloquear la respuesta api
+        background_tasks.add_task(send_email_task,emailRequest)
+        return{"status":"success", "message": "Correo Programado para envio"}
+    except Exception as e:
+        raise HTTPException(status_code=500,detail=f"Error al programar el envio {e}")

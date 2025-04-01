@@ -2,15 +2,41 @@ from fastapi import APIRouter, HTTPException, Depends, Form, File, UploadFile
 from typing import Optional
 from app.conexion import get_db
 from app.models.usuario import Usuarios
-from app.schemas.usuarios_schemas import UsuarioLogin, UsuarioResponse, UsuarioDTO,Rol, SubRol
+from app.schemas.usuarios_schemas import UsuarioLogin, UsuarioResponse, UsuarioDTO,Rol, SubRol,UsuarioUpdate
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import session
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
+import jwt
+from jwt import PyJWTError
+from datetime import timedelta, datetime
+from passlib.context import CryptContext
+from app.schemas.token_schemas import Token
+import os
 
 router = APIRouter()
 app = FastAPI()
+
+
+
+#configuracion de hashing de contraseñas
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
+
+def create_access_token(data:dict,expires_delta:timedelta=None):
+    to_code=data.copy()
+    expire=datetime.utcnow()+(expires_delta if expires_delta else
+                               timedelta(minutes=ACCESS_TOKEN_EXPIRE_HOURS))
+    to_code.update({"exp":expire})
+    return jwt.encode(to_code, SECRET,algorithm=ALGORITHM)
+
+#funcion para verificar las contraseñas hasheadas
+def verify_passwords(plain_pass, hash_pass):
+    return pwd_context.verify(plain_pass, hash_pass)
+
+
 
 app.add_middleware(
     CORSMiddleware,
@@ -20,22 +46,64 @@ app.add_middleware(
     allow_headers=["*"],  # Permitir todos los encabezados
 )
 
+#este endpoint es para hashear las contraseñas (ya que se inserto los usuarios desde la base de datos)
+@router.post("/hasheo-password")
+async def hash(db: session=Depends(get_db)):
+    usuario = db.query(Usuarios).all()
+    for user in usuario:
+        if not pwd_context.identify(user.contraseña): #si no hay hash de la contraseña
+            user.contraseña = pwd_context.hash(user.contraseña)
+    db.commit()
+    return {"menssage": "Contraseñas hasheadas correctamente"}
 
-@router.post("/login")
-async def login(usuario_login: UsuarioLogin, db: session = Depends(get_db)):
+@router.post("/login", response_model=Token)
+async def login(user_login: UsuarioLogin,db: session = Depends(get_db)):
     # Buscar al usuario en la base de datos por su nombre
-    usuario = db.query(Usuarios).filter(Usuarios.nombre == usuario_login.nombre).first()
+    usuario = db.query(Usuarios).filter(Usuarios.nombre == user_login.nombre).first()
     if not usuario:
-        raise HTTPException(status_code=404,detail="Usuario no econtrado")
+        raise HTTPException(status_code=401,detail="Usuario no econtrado")
     
     #Verificar contraseña
-    if usuario.contraseña != usuario_login.contraseña:
+    if not pwd_context.verify(user_login.contraseña, usuario.contraseña):
         raise HTTPException(status_code=404,detail="contraseña incorrecta")
+    
     # Verficar si el rol esta en Enum (ya son valores de tipo string)
     if usuario.rol not in Rol.__members__:
         raise HTTPException(status_code=404,detail="Rol no valido")
 
-    return {"rol": usuario.rol}
+    #crear tokem JWT con la informacion del usuario
+    token_data = {"sub": usuario.nombre, "id": usuario.id, "rol": usuario.rol}
+    access_token = create_access_token(token_data)
+    #devolver el token y la informacion nesesaria para compatibilidad onc el frontend
+    return {
+        "access_token":  access_token,
+        "token_type": "bearer",
+        "rol": usuario.rol,
+        "mensaje": f"Bienvenido {usuario.nombre}"
+    }
+
+@router.get("/usuarios/me", response_model=UsuarioResponse)
+async def obtner_usuario_jwt(token:str=Depends(oauth2_scheme), db: session =Depends(get_db)):
+    try:
+        payload = jwt.decode(token,SECRET,algorithms=[ALGORITHM])
+        nombre_usuario = payload.get("sub")
+        usuario = db.query(Usuarios).filter(Usuarios.nombre == nombre_usuario).first()
+        if not usuario:
+            raise HTTPException(status_code=404,detail="No se encontro un usuario con ese nombre")
+        url_imagen = f"http://127.0.0.1:8000/usuarios/{usuario.ruta_imagen}"
+        return {
+            "id": usuario.id,
+            "nombre": usuario.nombre,
+            "telefono": usuario.telefono,
+            "documento": usuario.documento,
+            "rol": usuario.rol,
+            "subrol": usuario.subrol,
+            "correo": usuario.correo,
+            "ruta_imagen": url_imagen,
+        }
+    except PyJWTError:
+        raise HTTPException(status_code=401,detail="Token invalido")
+
 
 
 # Endpoints usarios
@@ -49,6 +117,7 @@ async def consultar(db: session = Depends(get_db)):
 async def agregar_usuario(
     nombre: str = Form(...),
     documento: int = Form(...),
+    telefono: int = Form(...),
     rol: Rol = Form(...),
     subrol: Optional[SubRol] = Form(None),
     correo: str = Form(...),
@@ -61,7 +130,7 @@ async def agregar_usuario(
         usuario_existente = db.query(Usuarios).filter(Usuarios.rol == rol).first()
         if usuario_existente:
             raise HTTPException(status_code=400, detail=f"Ya existe un usuario con el rol: {rol}")
-
+    
     # Procesar la imagen si se proporciona
     image_path = None
     if file:
@@ -76,12 +145,17 @@ async def agregar_usuario(
     usuario = Usuarios(
         nombre=nombre,
         documento=documento,
+        telefono=telefono,
         rol=rol,
         subrol=subrol,
         correo=correo,
         contraseña=contraseña,
         ruta_imagen=image_path,  # Guardar la ruta de la imagen si existe
     )
+
+    if usuario:
+        if not pwd_context.identify(usuario.contraseña):
+            usuario.contraseña = pwd_context.hash(usuario.contraseña)
 
     # Guardar en la base de datos
     try:
@@ -116,8 +190,8 @@ def eliminar_usuario_por_nombre(
         raise HTTPException(status_code=404, detail="No se encontró ningún usuario con el rol Jefe.")
 
     # Validar que la contraseña proporcionada coincide con la del Jefe
-    if jefe.contraseña != contraseña_proporcionada:
-        raise HTTPException(status_code=403, detail="Acceso denegado: Solo el jefe puede eliminar usuarios.")
+    if not verify_passwords(contraseña_proporcionada, jefe.contraseña):
+        raise HTTPException(status_code=403,detail="Acceso denegado solo el jefe puede eliminar usuarios")
 
     # Buscar al usuario que se quiere eliminar
     usuario_a_eliminar = db.query(Usuarios).filter(Usuarios.nombre == nombre_usuario_a_eliminar).first()
@@ -131,22 +205,75 @@ def eliminar_usuario_por_nombre(
     return {"message": f"Usuario {nombre_usuario_a_eliminar} eliminado correctamente."}
 
 
-@router.put("/usuarios/{id}", response_model=UsuarioDTO)
-def actualizar_usuario(id: int, usuario: UsuarioDTO, db: session = Depends(get_db)):
 
+@router.post("/usuarios/imagen/{id}", response_model=UsuarioResponse)
+async def actualizar_imagen_usuario(
+    id: int,
+    file: Optional[UploadFile] = File(None),
+    db: session = Depends(get_db)
+):
     # Buscar el usuario por ID
     usuario_existente = db.query(Usuarios).filter(Usuarios.id == id).first()
     if not usuario_existente:
-        raise HTTPException(
-            status_code=404, detail="Usuario no encontrado")
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+    try:
+        # Eliminar imagen anterior si existe
+        if usuario_existente.ruta_imagen and os.path.exists(usuario_existente.ruta_imagen):
+            os.remove(usuario_existente.ruta_imagen)
+        
+        image_path = None
+        if file:
+            try:
+                image_path = f"images/{file.filename}"
+                with open(image_path, "wb") as f:
+                    f.write(await file.read())
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=f"Error al guardar la imagen: {str(e)}")
+        
+        # Actualizar ruta de imagen en base de datos
+        usuario_existente.ruta_imagen = image_path
+        db.commit()
+        db.refresh(usuario_existente)
+        
+        # Preparar la URL completa de la imagen
+        imagen_url = f"http://127.0.0.1:8000/usuarios/{image_path}"
+        
+        return UsuarioResponse(
+            id=usuario_existente.id,
+            telefono=usuario_existente.telefono,
+            nombre=usuario_existente.nombre,
+            documento=usuario_existente.documento,
+            rol=usuario_existente.rol,
+            subrol=usuario_existente.subrol,
+            correo=usuario_existente.correo,
+            ruta_imagen=imagen_url,
+        )
+    
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Error al guardar la imagen: {str(e)}")
+    
 
-    # Actualizar los campos del usuario
-    usuario_existente.nombre = usuario.nombre
-    usuario_existente.rol = usuario.rol
-    usuario_existente.subrol = usuario.subrol
-    usuario_existente.correo = usuario.correo
-    usuario_existente.contraseña = usuario.contraseña
-    usuario_existente.documento = usuario.documento
+@router.patch("/usuarios/{id}", response_model=UsuarioDTO)
+def actualizar_usuario_parcial(
+    id: int, 
+    usuario: UsuarioUpdate,  # Usamos un modelo específico para actualizaciones
+    db: session = Depends(get_db)
+):
+    # Buscar el usuario por ID
+    usuario_existente = db.query(Usuarios).filter(Usuarios.id == id).first()
+    if not usuario_existente:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+    
+    # Convertir los datos de entrada a un diccionario, excluyendo los valores nulos
+    usuario_data = usuario.dict(exclude_unset=True)
+
+    # Actualizar solo los campos proporcionados
+    for campo, valor in usuario_data.items():
+        setattr(usuario_existente, campo, valor)
+    if usuario_existente:
+        if not pwd_context.identify(usuario_existente.contraseña):
+            usuario_existente.contraseña = pwd_context.hash(usuario_existente.contraseña)
 
     db.commit()
     db.refresh(usuario_existente)

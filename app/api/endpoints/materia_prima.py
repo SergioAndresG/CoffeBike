@@ -12,7 +12,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.endpoints.compra import enviar
 from datetime import datetime
 
-
 app = FastAPI()
 router_materia = APIRouter(prefix="/materia", tags=["MateriaPrima"])
 
@@ -28,7 +27,8 @@ app.add_middleware(
 def verificar_vencimientos(db: session):
     #Verifica las materias primas proximas a vencer y envia alertas
     #Se debe colocar dentro de una funcion text, para que cumpla la sintaxis correcta de la consulta
-    mateias = db.execute(text("""
+    mateias = db.execute(text(
+    """
         SELECT
             id,nombre,cantidad,fecha_vencimiento,
             DATEDIFF(fecha_vencimiento, CURDATE()) as dias_restantes
@@ -36,7 +36,8 @@ def verificar_vencimientos(db: session):
             materia_prima
         WHERE
             DATEDIFF(fecha_vencimiento, CURDATE()) <= 7;
-    """)).fetchall()
+    """
+    )).fetchall()
 
     for materia in mateias:
         if materia.dias_restantes <= 7:
@@ -63,11 +64,13 @@ def enviar_alerta_materia(item, db):
 async def consultar(db: session = Depends(get_db)):
     # Aquí se consulta la base de datos usando SQLAlchemy
     materias = db.query(MateriaPrima).all()  
-
+    #Al consultar las materias primas se va a devolver un objeto de tipo datatime, 
+    #isoFormat lo convierte en una cadena para que 
+    #cuando se consuma la APi, se devuelvan como texto (cabe aclara que es compatible con json lo que nos da mas control)
     for materia in materias:
         materia.fecha_ingreso = materia.fecha_ingreso.isoformat()
         materia.fecha_vencimiento = materia.fecha_vencimiento.isoformat()
-
+    #retornamos las materias primas encontradas
     return materias
 
 @router_materia.get("/unidades-medida")

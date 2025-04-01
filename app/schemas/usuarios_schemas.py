@@ -14,6 +14,7 @@ class SubRol(str, Enum):
 class UsuarioBase(BaseModel):
     nombre: str
     documento: int
+    telefono: int
     correo: str
     rol: Rol # Enum definido para Rol
     subrol: Optional[SubRol]  # Enum definido para SubRol, opcional
@@ -26,6 +27,7 @@ class UsuarioResponse(BaseModel):
     id: int
     nombre: str
     documento: int
+    telefono: int
     rol: str
     subrol: Optional[str]
     correo: str
@@ -34,9 +36,23 @@ class UsuarioResponse(BaseModel):
     class Config:
         from_attributes = True
 
+class UsuarioUpdate(BaseModel):
+    id: int
+    nombre: Optional[str] = None
+    telefono: Optional[int] = None
+    rol: Optional[str] = None
+    subrol: Optional[str] = None
+    correo: Optional[str] = None
+    contraseña: Optional[str] = None
+    documento: Optional[int] = None
+    
+    class Config:
+        orm_mode = True
+
 class UsuarioDTO(BaseModel):
     nombre: str
     documento: int
+    telefono: int
     rol: str
     subrol: Optional[str] = None
     correo: str

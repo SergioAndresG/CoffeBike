@@ -18,3 +18,8 @@ class AlertaResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+class EmailRequest(BaseModel):
+    to_email:str
+    subject:str
+    message:str
