@@ -23,6 +23,8 @@ class MateriaPrima(base):
     unidad=relationship("UnidadMedida",back_populates="materia_prima" )
     # Relacion con la tabla materia_prima_recetas
     materia_prima_recetas = relationship("MateriaPrimaRecetas", back_populates="materia_prima")
+     # Relacion con la tabla de lotes
+    lotes = relationship("LoteMateriaPrima", back_populates="materia_prima")
 
     def get_cantidad_base(self):
         """
@@ -93,3 +95,18 @@ class MateriaPrima(base):
         self.fecha_ingreso = fecha_ingreso
         self.vida_util_dias = vida_util_dias
         self.fecha_vencimiento = fecha_vencimiento
+
+
+class LoteMateriaPrima(base):
+    __tablename__ = "lotes_materia_prima"
+
+    id = Column(Integer, primary_key=True, index=True)
+    materia_prima_id = Column(Integer, ForeignKey("materia_prima.id"), nullable=False)
+    cantidad = Column(Numeric(10, 2), nullable=False)
+    fecha_ingreso = Column(Date, nullable=False)
+    vida_util_dias = Column(Integer, nullable=False)
+    fecha_vencimiento = Column(Date, Computed("DATE_ADD(fecha_ingreso, INTERVAL vida_util_dias DAY)", persisted=True))
+    precio_unitario = Column(Numeric(10,2), nullable=False)
+
+
+    materia_prima = relationship("MateriaPrima", back_populates="lotes")

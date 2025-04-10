@@ -51,7 +51,6 @@ async def consultar(db: session = Depends(get_db)):
     # Aquí se consulta la base de datos usando SQLAlchemy
     productos = db.query(Productos).all()  
     return productos
-
 @router_productos.post("/", response_model=ProductoCreate)
 async def agregar_producto(
     nombre: str = Form(...),
@@ -62,11 +61,15 @@ async def agregar_producto(
     precio_unitario: float = Form(...),
     id_usuario: int = Form(...),
     ingredientes: Optional[str] = Form(None),  # JSON con los ingredientes
-    preparar_inicial: bool = Form(None),
+    preparar_inicial: bool = Form(False),  # Default value to avoid None
     file: Optional[UploadFile] = File(None),
     db: session = Depends(get_db)
 ):
-    # Procesar la imagen si se proporciona
+    """
+    Endpoint para agregar un nuevo producto con validación de ingredientes y
+    posibilidad de procesamiento inicial.
+    """
+    # Pse procesa la imagen si se envia desde el frontend
     image_path = None
     if file:
         try:
@@ -76,49 +79,24 @@ async def agregar_producto(
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Error al guardar la imagen: {str(e)}")
 
-    # Validar ingredientes antes de guardar el producto**
+    # Process and validate ingredients for HECHO type products
+    # prceso y validacion de ingredientes para los products de tipo hecho
     ingredientes_list = []
     if tipo == Tipo.HECHO:
         if not ingredientes:
             raise HTTPException(status_code=400, detail="Los ingredientes son obligatorios para productos tipo HECHO")
-
-        try:
-            ingredientes_list = json.loads(ingredientes)
-            if not isinstance(ingredientes_list, list):
-                raise HTTPException(status_code=400, detail="Formato incorrecto de ingredientes")
-
-            for ingrediente in ingredientes_list:
-                materia_prima_id = ingrediente.get("materia_prima_id")
-                cantidad_ingrediente = ingrediente.get("cantidad_ingrediente")
-                unidad_id = ingrediente.get("unidad_id") #para porder usare la conversion
-
-                if materia_prima_id is None:
-                    raise HTTPException(status_code=400, detail="ID de materia prima no puede ser None")
-                #Verificar que la materia prima exista
-                materia_prima = db.query(MateriaPrima).filter(MateriaPrima.id == materia_prima_id).first()
-                if not materia_prima:
-                    raise HTTPException(status_code=404, detail=f"Materia prima con ID {materia_prima_id} no encontrada")
-                
-                # Si se proporcina una unidad, verificar que existe y si es compatible
-                if unidad_id:
-                    unidad_medida = db.query(UnidadMedida).filter(UnidadMedida.id == unidad_id).first()
-                    if not unidad_medida:
-                        raise HTTPException(status_code=400, detail="Unidad de medida no encontrada")
-                    
-                    #Verificar compatibilidad entre unidades
-                    if unidad_medida.tipo_medida != materia_prima.unidad.tipo_medida:
-                        raise HTTPException(status_code=400,detail=f"No se puede convertir entre {unidad_medida.tipo_medida} y {materia_prima.unidad.tipo_medida}, Medidas de diferente tipo")
-
-        except json.JSONDecodeError:
-            raise HTTPException(status_code=400, detail="Error en el formato del JSON de ingredientes")
+        
+        # Parse and validate ingredients
+        ingredientes_list = _parse_and_validate_ingredients(ingredientes, db)
 
     try:
-        #Guardar el producto inicialmente con cantidad 0 si se va a preparar despues
-        cantidad_inicial = 0 if (tipo == "HECHO" and preparar_inicial) else cantidad
-        #Guardar el producto solo si los ingredientes son válidos
+        # Initialize with proper quantity
+        cantidad_inicial = cantidad if not (tipo == Tipo.HECHO and preparar_inicial) else 0
+        
+        # Create product
         producto = Productos(
             nombre=nombre,
-            cantidad=cantidad,
+            cantidad=cantidad_inicial,
             categoria=categoria,
             precio_unitario=precio_unitario,
             id_usuario=id_usuario,
@@ -128,83 +106,132 @@ async def agregar_producto(
         )
         db.add(producto)
         db.commit()
-        db.refresh(producto) # Asegura que producto.id esté disponible
-        #  Guardar los ingredientes ahora que el producto está confirmado**
+        db.refresh(producto)
+        
+        # Add recipe ingredients if HECHO type
         if tipo == Tipo.HECHO:
-            for ingrediente in ingredientes_list:
-                receta = MateriaPrimaRecetas(
-                    producto_id=producto.id,
-                    materia_prima_id=ingrediente["materia_prima_id"],
-                    cantidad_ingrediente=ingrediente["cantidad_ingrediente"],
-                    unidad_id=ingrediente.get("unidad_id") # Puede ser none, en ese caso se usara el tipo de medida de materia prima (base)
-                )
-                db.add(receta)
-            db.commit()
-            db.refresh(producto)
-            #Si se debe preparar un producto, hacerlos despues de guardar la receta
+            _add_recipe_ingredients(db, producto.id, ingredientes_list)
+            
+            # Prepare initial product if requested
             if preparar_inicial and cantidad > 0:
                 try:
                     mensaje = producto.preparar_producto(cantidad)
                     db.commit()
                 except Exception as e:
-                    #Si no hay sufucientes ingredientes hacemos rollback y notificamos
                     db.rollback()
                     raise HTTPException(status_code=500, detail=str(e))
-        # Construir la respuesta**
-        respuesta = {
-            "id": producto.id,
-            "nombre": producto.nombre,
-            "categoria": producto.categoria,
-            "precio_unitario": float(producto.precio_unitario),
-            "tipo": producto.tipo,
-            "stock_minimo": producto.stock_minimo,
-            "ruta_imagen": producto.ruta_imagen,
-            "id_usuario": producto.id_usuario,
-            "cantidad": producto.cantidad
-        }
-
-        if producto.tipo == Tipo.HECHO:
-            #Lista vacia para almacenar los ingredientes
-            ingredientes_data = []
-            recetas = db.query(MateriaPrimaRecetas).filter(MateriaPrimaRecetas.producto_id == producto.id).all()
-            #Bucle para procesar  cada ingrediente
-            for receta in recetas:
-                #en esta variable almacenamos la unidad de medida del ingrediente
-                unidad_receta = None
-                if receta.unidad_id:
-                    unidad_receta = db.query(UnidadMedida).filter(UnidadMedida.id == receta.unidad_id).first()
-                materia_prima = db.query(MateriaPrima).filter(MateriaPrima.id == receta.materia_prima_id).first()
-                #se crea un diccionario con la informacion del ingrediente para añadirlo a la lista
-                ingredientes_data.append({
-                    #Se añade el id de la relacion receta
-                    "id": receta.id,
-                    #Añade el is de la materia prima (imgrediente)
-                    "materia_prima_id": receta.materia_prima_id,
-                    #Añade el nombre de la materia 
-                    #Si el materia_prima es None (no se encontro), usamos "Desconocido como fallback"
-                    "nombre_materia": materia_prima.nombre if materia_prima else "Desconocido",
-                    #Se añade la cantidad del ingrediente convertida a float 
-                    "cantidad": float(receta.cantidad_ingrediente),
-                    #Aca se define la unidad de medida para este ingredinete
-                    #si la receta tiene una undiad especifica, usa esa
-                    #si no, intenta usar la unuidad asociada a la materia prima.
-                    #si tampoco hay materia prima, usa 0 como valor predeterminado
-                    "unidad_medida": receta.unidad_id if receta.unidad_id else (materia_prima.unidad_id if materia_prima else 0),
-                    #Similar a lo anterior pero devuelve None en lugar de 0 si no hay unidad
-                    "unidad_id": receta.unidad_id if receta.unidad_id else (materia_prima.unidad_id if materia_prima else None),
-                    #Obtiene el simbolo de la unidad de medida
-                    #Si falla intentar obtenerlo desde la unidad aosicada a la materia prima 
-                    #si todo falla devuelve un fallvack mencionado anteriormente
-                    "unidad_simbolo": unidad_receta.simbolo if unidad_receta else (materia_prima.unidad.simbolo if materia_prima else "Desconocido")
-
-                })
-            respuesta["ingredientes"] = ingredientes_data
-
-        return respuesta
-
+        
+        # Build and return response
+        return _build_product_response(db, producto)
+        
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=400, detail=f"Error al guardar producto: {str(e)}")
+
+
+def _parse_and_validate_ingredients(ingredientes_json, db):
+    """Helper function to parse and validate ingredients JSON"""
+    try:
+        ingredientes_list = json.loads(ingredientes_json)
+        if not isinstance(ingredientes_list, list):
+            raise HTTPException(status_code=400, detail="Formato incorrecto de ingredientes")
+        
+        # Collect all materia_prima_ids and unidad_ids for batch fetching
+        materia_prima_ids = [ing.get("materia_prima_id") for ing in ingredientes_list]
+        unidad_ids = [ing.get("unidad_id") for ing in ingredientes_list if ing.get("unidad_id")]
+        
+        # Batch fetch all materias primas and unidades to avoid N+1 queries
+        materias_primas = {mp.id: mp for mp in db.query(MateriaPrima).filter(MateriaPrima.id.in_(materia_prima_ids)).all()}
+        unidades = {u.id: u for u in db.query(UnidadMedida).filter(UnidadMedida.id.in_(unidad_ids)).all()} if unidad_ids else {}
+        
+        # Validate each ingredient
+        for ingrediente in ingredientes_list:
+            materia_prima_id = ingrediente.get("materia_prima_id")
+            unidad_id = ingrediente.get("unidad_id")
+            
+            if materia_prima_id is None:
+                raise HTTPException(status_code=400, detail="ID de materia prima no puede ser None")
+            
+            # Check if materia prima exists
+            materia_prima = materias_primas.get(materia_prima_id)
+            if not materia_prima:
+                raise HTTPException(status_code=404, detail=f"Materia prima con ID {materia_prima_id} no encontrada")
+            
+            # Check unit compatibility if provided
+            if unidad_id:
+                unidad_medida = unidades.get(unidad_id)
+                if not unidad_medida:
+                    raise HTTPException(status_code=400, detail=f"Unidad de medida con ID {unidad_id} no encontrada")
+                
+                if unidad_medida.tipo_medida != materia_prima.unidad.tipo_medida:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"No se puede convertir entre {unidad_medida.tipo_medida} y {materia_prima.unidad.tipo_medida}, Medidas de diferente tipo"
+                    )
+        
+        return ingredientes_list
+        
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=400, detail="Error en el formato del JSON de ingredientes")
+
+
+def _add_recipe_ingredients(db, producto_id, ingredientes_list):
+    """Helper function to add recipe ingredients to database"""
+    for ingrediente in ingredientes_list:
+        receta = MateriaPrimaRecetas(
+            producto_id=producto_id,
+            materia_prima_id=ingrediente["materia_prima_id"],
+            cantidad_ingrediente=ingrediente["cantidad_ingrediente"],
+            unidad_id=ingrediente.get("unidad_id")
+        )
+        db.add(receta)
+    db.commit()
+
+
+def _build_product_response(db, producto):
+    """Helper function to build product response with ingredients if needed"""
+    respuesta = {
+        "id": producto.id,
+        "nombre": producto.nombre,
+        "categoria": producto.categoria,
+        "precio_unitario": float(producto.precio_unitario),
+        "tipo": producto.tipo,
+        "stock_minimo": producto.stock_minimo,
+        "ruta_imagen": producto.ruta_imagen,
+        "id_usuario": producto.id_usuario,
+        "cantidad": producto.cantidad
+    }
+
+    if producto.tipo == Tipo.HECHO:
+        # Fetch all recipe ingredients in one query
+        recetas = db.query(MateriaPrimaRecetas).filter(MateriaPrimaRecetas.producto_id == producto.id).all()
+        
+        # Get all related materias primas and unidades in batch
+        materia_prima_ids = [receta.materia_prima_id for receta in recetas]
+        unidad_ids = [receta.unidad_id for receta in recetas if receta.unidad_id]
+        
+        materias_primas = {mp.id: mp for mp in db.query(MateriaPrima).filter(MateriaPrima.id.in_(materia_prima_ids)).all()}
+        unidades = {u.id: u for u in db.query(UnidadMedida).filter(UnidadMedida.id.in_(unidad_ids)).all()} if unidad_ids else {}
+        
+        # Build ingredients data
+        ingredientes_data = []
+        for receta in recetas:
+            materia_prima = materias_primas.get(receta.materia_prima_id)
+            unidad_receta = unidades.get(receta.unidad_id) if receta.unidad_id else None
+            
+            ingredientes_data.append({
+                "id": receta.id,
+                "materia_prima_id": receta.materia_prima_id,
+                "nombre_materia": materia_prima.nombre if materia_prima else "Desconocido",
+                "cantidad": float(receta.cantidad_ingrediente),
+                "unidad_medida": receta.unidad_id if receta.unidad_id else (materia_prima.unidad_id if materia_prima else None),
+                "unidad_id": receta.unidad_id if receta.unidad_id else (materia_prima.unidad_id if materia_prima else None),
+                "unidad_simbolo": unidad_receta.simbolo if unidad_receta else (materia_prima.unidad.simbolo if materia_prima else "Desconocido")
+            })
+        
+        respuesta["ingredientes"] = ingredientes_data
+    
+    return respuesta
 
 
 @router_productos.patch("/{id}", response_model=ProductoDTO)

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Depends, Form, File, UploadFile
+from fastapi import APIRouter, HTTPException, Depends, Form, File, UploadFile, status
 from typing import Optional
 from app.conexion import get_db
 from app.models.usuario import Usuarios
@@ -15,11 +15,16 @@ from datetime import timedelta, datetime
 from passlib.context import CryptContext
 from app.schemas.token_schemas import Token
 import os
+from app.models.clientes import Cliente
+
 
 router = APIRouter()
 app = FastAPI()
 
-
+#configuracion para el JWT
+SECRET = "sapo_420"
+ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_HOURS = 24
 
 #configuracion de hashing de contraseñas
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -35,8 +40,6 @@ def create_access_token(data:dict,expires_delta:timedelta=None):
 #funcion para verificar las contraseñas hasheadas
 def verify_passwords(plain_pass, hash_pass):
     return pwd_context.verify(plain_pass, hash_pass)
-
-
 
 app.add_middleware(
     CORSMiddleware,
