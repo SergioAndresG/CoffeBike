@@ -3,7 +3,8 @@ from sqlalchemy.orm import relationship
 from app.conexion import base
 from app.schemas import Categoria, Tipo
 from app.models import Usuarios, DetalleFactura,Alertas
-
+from app.api.endpoints.materia_prima import verificar_stock_bajo
+from app.conexion import get_db
 
 # Tabla de Productos 
 class Productos(base):
@@ -13,7 +14,8 @@ class Productos(base):
     nombre = Column(String(100), nullable=False, unique=True)
     cantidad = Column(Integer, nullable=False)
     categoria = Column(Enum(Categoria), nullable=False)
-    precio_unitario = Column(Numeric(10, 2), nullable=False)
+    precio_entrada = Column(Numeric(10, 2), nullable=True)  # <-- Nuevo campo
+    precio_salida = Column(Numeric(10, 2), nullable=False)   # <-- Antes llamado "precio_unitario"
     id_usuario = Column(Integer, ForeignKey('usuarios.id'))
     ruta_imagen = Column(String(100), nullable=True)
     tipo = Column(Enum(Tipo), nullable=False)
@@ -23,10 +25,10 @@ class Productos(base):
     usuario = relationship("Usuarios", back_populates="productos")
     materia_prima_recetas = relationship("MateriaPrimaRecetas", back_populates="producto")
     # Relación con DetalleFactura
-    detalles_factura = relationship("DetalleFactura", back_populates="producto")
+    detalles = relationship("DetalleFactura", back_populates="producto")
     # Relacion con Alertas
     alertas = relationship("Alertas", back_populates="producto")
-    # Relacion con Materia Prima
+
 
     def preparar_producto(self, cantidad):
         """
@@ -67,6 +69,10 @@ class Productos(base):
             raise ValueError(
                 f"No hay sufucientes ingredintes para preparar {cantidad} {self.nombre}:\n" + "\n".join(ingredintes_insuficientes)
             )
+        
+        # Lista para rastrear las materias primas que necesitarán verificación
+        materias_prima_afectadas = []
+
         #Si tenemos suficiente de todo, reducimos los ingredientes
         for ingrediente in self.materia_prima_recetas:
             ingrediente.usar_ingredientes(cantidad)
@@ -74,15 +80,25 @@ class Productos(base):
         #Incrementar la cantidad del proucto preparado
         self.cantidad += cantidad
 
+        db = next(get_db())
+    
+        try:
+            # Verificar el stock de cada materia prima afectada
+            for materia_id in materias_prima_afectadas:
+                verificar_stock_bajo(db, materia_id)
+        finally:
+            db.close()  #cerrar la sesión
+
         return f"Producto preparado"
 
 
 
-    def __init__(self, nombre, cantidad, categoria, precio_unitario, id_usuario, tipo,stock_minimo, ruta_imagen=None):
+    def __init__(self, nombre, cantidad, categoria, precio_entrada, precio_salida, id_usuario, tipo,stock_minimo, ruta_imagen=None):
         self.nombre = nombre
         self.cantidad = cantidad
         self.categoria = categoria
-        self.precio_unitario = precio_unitario
+        self.precio_entrada = precio_entrada
+        self.precio_salida = precio_salida
         self.id_usuario = id_usuario
         self.ruta_imagen = ruta_imagen
         self.tipo = tipo

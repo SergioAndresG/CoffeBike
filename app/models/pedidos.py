@@ -17,3 +17,4 @@ class Pedido(base):
     cliente = relationship("Cliente", back_populates="pedidos")
     productos = relationship("PedidoProducto", back_populates="pedido")
     estados = relationship("EstadoPedido", back_populates="pedido")
+    factura = relationship("Factura", back_populates="pedido")

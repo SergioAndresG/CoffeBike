@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Depends, Form, File, UploadFile, status
+from fastapi import APIRouter, HTTPException, Depends, Form, File, UploadFile, status, BackgroundTasks, Body
 from typing import Optional
 from app.conexion import get_db
 from app.models.usuario import Usuarios
@@ -16,6 +16,8 @@ from passlib.context import CryptContext
 from app.schemas.token_schemas import Token
 import os
 from app.models.clientes import Cliente
+from app.api.endpoints.productos import send_email_task
+from app.schemas.alerta_schemas import EmailRequest
 
 
 router = APIRouter()
@@ -58,6 +60,102 @@ async def hash(db: session=Depends(get_db)):
             user.contraseña = pwd_context.hash(user.contraseña)
     db.commit()
     return {"menssage": "Contraseñas hasheadas correctamente"}
+
+@router.post("/reset-password-request")
+async def reset_password(db: session=Depends(get_db), email:str = Form(...), background_tasks: BackgroundTasks = BackgroundTasks()):
+    #consultamos si el usuario existe
+    usuario = db.query(Usuarios).filter(Usuarios.correo == email).first()
+    if not usuario:
+        # Por seguridad, no revelamos que el email no existe
+        return {"message": "Si el correo existe, recibirás un enlace de recuperación"}
+    
+    #Generar token unico para recuperacion
+    token_data = {"sub": usuario.correo, "type": "reset_password"}
+    expires = timedelta(minutes=15) #tiempo de exipracion de 15 mnts
+    reset_token = create_access_token(token_data, expires)
+
+    #creamos el enlace de recuperacion
+    reset_link = f"http://localhost:5173/NewPass?token={reset_token}"
+
+     # Preparar el correo electrónico
+    html_content = f"""
+    <html>
+      <body>
+        <h1>Recuperación de contraseña</h1>
+        <p>Hola {usuario.nombre},</p>
+        <p>Has solicitado restablecer tu contraseña. Por favor, haz clic en el siguiente enlace:</p>
+        <p><a href="{reset_link}">Restablecer mi contraseña</a></p>
+        <p>Este enlace expirará en 15 minutos.</p>
+        <p>Si no solicitaste esta recuperación, por favor ignora este correo.</p>
+      </body>
+    </html>
+    """
+    
+    email_request = EmailRequest(
+        to_email=email,
+        subject="Recuperación de contraseña - CoffeBike",
+        message=html_content
+    )
+    
+    # Enviar correo en segundo plano
+    background_tasks.add_task(send_email_task, email_request)
+    
+    return {"message": "Si el correo existe, recibirás un enlace de recuperación"}
+
+
+@router.post("/validate-reset-token")
+async def validate_reset_token(token: str = Body(..., embed=True)):
+    try:
+        # Decodificar token
+        payload = jwt.decode(token, SECRET, algorithms=[ALGORITHM])
+        email = payload.get("sub")
+        token_type = payload.get("type")
+        
+        # Verificar que sea un token de tipo reset_password
+        if token_type != "reset_password":
+            raise HTTPException(status_code=400, detail="Token inválido")
+            
+        return {"valid": True, "email": email}
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="Token expirado")
+    except jwt.JWTError:
+        raise HTTPException(status_code=401, detail="Token inválido")
+
+
+@router.post("/reset-password")
+async def reset_password(
+    token: str = Body(...),
+    new_password: str = Body(...),
+    db: session = Depends(get_db)
+):
+    try:
+        # Decodificar token
+        payload = jwt.decode(token, SECRET, algorithms=[ALGORITHM])
+        email = payload.get("sub")
+        token_type = payload.get("type")
+        
+        # Verificar que sea un token de tipo reset_password
+        if token_type != "reset_password":
+            raise HTTPException(status_code=400, detail="Token inválido")
+            
+        # Buscar usuario
+        usuario = db.query(Usuarios).filter(Usuarios.correo == email).first()
+        if not usuario:
+            raise HTTPException(status_code=404, detail="Usuario no encontrado")
+        
+        # Actualizar contraseña (hashear primero)
+        hashed_password = pwd_context.hash(new_password)
+        usuario.contraseña = hashed_password
+        db.commit()
+        
+        return {"message": "Contraseña actualizada con éxito"}
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="Token expirado")
+    except jwt.JWTError:
+        raise HTTPException(status_code=401, detail="Token inválido") 
+
+
+
 
 @router.post("/login", response_model=Token)
 async def login(user_login: UsuarioLogin,db: session = Depends(get_db)):

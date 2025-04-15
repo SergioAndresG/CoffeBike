@@ -9,19 +9,30 @@ class IngredienteSchema(BaseModel):
     unidad_medida: int
     unidad_id: int
 
+class UnidadMedidaSchema(BaseModel):
+    id: int
+    nombre: str
+    simbolo:str
+
+    class Config:
+        from_attributes = True
 
 class MateriaPrimaBase(BaseModel):
+    id: int
     nombre: str
     cantidad: float
     ruta_imagen: str | None = None
     stock_minimo: float
     fecha_ingreso: date
+    fecha_vencimiento: date
     vida_util_dias: int
     unidad_id: int
     precio_unitario: float
+    unidad: UnidadMedidaSchema
+
+    class Config:
+        from_attributes = True
   
-
-
 class MateriaPrimaCreate(MateriaPrimaBase):
     pass
 
@@ -37,7 +48,6 @@ class MateriaPrimaUpdate(BaseModel):
     class Config:
         from_attributes = True
 
-
 class MateriaPrimaDTO(BaseModel):
     id: int  
     nombre: str
@@ -48,23 +58,20 @@ class MateriaPrimaDTO(BaseModel):
     vida_util_dias: int
     precio_unitario: float
     ruta_imagen: Optional[str]
+    unidad: UnidadMedidaSchema
+
 
     class Config:
         from_attributes = True
 
-
 class MateriaPrimaResponse(MateriaPrimaDTO):
     fecha_vencimiento: date  #para que solo aparezca en la respuesta
-
-
+    unidad: UnidadMedidaSchema
 
 class EliminarMateriaRequest(BaseModel):
     idMateriaaEliminar: int
     contraseñaProporcionada: str
     
-
-
-
 class LoteCreate(BaseModel):
     cantidad: int
     fecha_ingreso: date

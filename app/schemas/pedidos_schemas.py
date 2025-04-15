@@ -18,7 +18,7 @@ class EstadoPedidoEnum(str, Enum):
 class PedidoProductoCreate(BaseModel):
     producto_id: int
     cantidad: int
-    precio_unitario: float
+    precio_salida: float
 
 class PedidoCreate(BaseModel):
     cliente_id: int

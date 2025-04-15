@@ -12,8 +12,10 @@ class DetalleFactura(base):
     precio_unitario = Column(Numeric(10, 2), nullable=False)
     subtotal = Column(Numeric(10, 2), nullable=False)
 
-    factura = relationship("Factura", back_populates="detalles_factura")
-    producto = relationship("Productos", back_populates="detalles_factura")
+    factura = relationship("Factura", back_populates="detalles")
+
+    producto = relationship("Productos", back_populates="detalles")
+
 
     def __init__(self, factura, producto, cantidad, precio_unitario, subtotal, factura_id, producto_id):
         self.factura = factura

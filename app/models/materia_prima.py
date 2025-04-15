@@ -5,7 +5,6 @@ from app.conexion import base
 import decimal
 
 
-
 class MateriaPrima(base):
     __tablename__ = 'materia_prima'
 
@@ -18,12 +17,13 @@ class MateriaPrima(base):
     vida_util_dias = Column(Integer, nullable=False) 
     fecha_vencimiento = Column(Date, Computed("DATE_ADD(fecha_ingreso, INTERVAL vida_util_dias DAY)", persisted=True))
     unidad_id=Column(Integer, ForeignKey("unidad_medida.id"))
+    precio_unitario = Column(Numeric(10,2), nullable=False)
 
     # Relacion con la unidad de medida
     unidad=relationship("UnidadMedida",back_populates="materia_prima" )
     # Relacion con la tabla materia_prima_recetas
     materia_prima_recetas = relationship("MateriaPrimaRecetas", back_populates="materia_prima")
-     # Relacion con la tabla de lotes
+    # Relacion con la tabla de lotes
     lotes = relationship("LoteMateriaPrima", back_populates="materia_prima")
 
     def get_cantidad_base(self):
@@ -86,15 +86,15 @@ class MateriaPrima(base):
         
         self.cantidad = decimal.Decimal(float(self.cantidad)-cantidad_en_unidad_material)
     
-    def __init__(self, nombre, unidad, cantidad, ruta_imagen, stock_minimo, fecha_ingreso, fecha_vencimiento, vida_util_dias):
+    def __init__(self, nombre, unidad, cantidad, ruta_imagen, stock_minimo, fecha_ingreso, vida_util_dias, precio_unitario):
         self.nombre = nombre
         self.unidad = unidad
         self.cantidad = cantidad
         self.ruta_imagen = ruta_imagen
         self.stock_minimo = stock_minimo
+        self.precio_unitario = precio_unitario
         self.fecha_ingreso = fecha_ingreso
         self.vida_util_dias = vida_util_dias
-        self.fecha_vencimiento = fecha_vencimiento
 
 
 class LoteMateriaPrima(base):
@@ -107,6 +107,5 @@ class LoteMateriaPrima(base):
     vida_util_dias = Column(Integer, nullable=False)
     fecha_vencimiento = Column(Date, Computed("DATE_ADD(fecha_ingreso, INTERVAL vida_util_dias DAY)", persisted=True))
     precio_unitario = Column(Numeric(10,2), nullable=False)
-
 
     materia_prima = relationship("MateriaPrima", back_populates="lotes")

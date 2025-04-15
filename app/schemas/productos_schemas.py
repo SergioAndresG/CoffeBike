@@ -3,7 +3,9 @@ from typing import Optional, List
 from enum import Enum
 from decimal import Decimal
 from app.models.materia_prima_recetas import MateriaPrimaRecetas
-from .materia_schemas import IngredienteSchema
+from .materia_schemas import IngredienteSchema, MateriaPrimaDTO
+from .unidad_schema import UnidadesMedidaSchemas
+
 
 class Categoria(str, Enum):
     AMASIJOS = "AMASIJOS"
@@ -28,7 +30,8 @@ class ProductoBase(BaseModel):
     categoria: Categoria
     stock_minimo: int
     tipo: Tipo
-    precio_unitario: int
+    precio_salida: float
+    precio_entrada: Optional[float] = None
     id_usuario: int
     materias_primas: Optional[List[MateriaPrimaRecetas]] = None
     ruta_imagen: Optional[str]
@@ -45,8 +48,8 @@ class ProductoUpdate(BaseModel):
     cantidad: Optional[int] = None
     stock_minimo: Optional[int] = None
     categoria: Optional[Categoria] = None
-    # tipo: Tipo
-    precio_unitario: Optional[Decimal] = None
+    precio_salida: Optional[float] = None
+    precio_entrada: Optional[float] = None
     ruta_imagen: Optional[str] = None
     id_usuario: Optional[int] =None
 
@@ -59,8 +62,8 @@ class ProductoDTO(BaseModel):
     cantidad: int
     stock_minimo: int
     categoria: Categoria
-    # tipo: Tipo
-    precio_unitario: float
+    precio_salida: float
+    precio_entrada: Optional[float] = None
     ruta_imagen: Optional[str]
     id_usuario: int
 
@@ -68,7 +71,8 @@ class ProductoCreate(BaseModel):
     nombre: str
     cantidad: int
     categoria: Categoria
-    precio_unitario: float
+    precio_salida: Decimal
+    precio_entrada: Optional[float] = None
     id_usuario: int
     tipo: Tipo
     stock_minimo: int
@@ -77,3 +81,35 @@ class ProductoCreate(BaseModel):
 
     class Config:
         from_attributes = True
+
+class RecetaIngredienteUpdate(BaseModel):
+    materia_prima_id: int
+    cantidad_ingrediente: float
+    unidad_id: Optional[int] = None
+
+class ProductoUpdate(BaseModel):
+    nombre: Optional[str] = None #
+    categoria: Optional[str] = None #
+    tipo: Optional[str] = None   
+    precio_unitario: Optional[float] = None #
+    cantidad: Optional[float] = None #
+    stock_minimo: Optional[float] = None #
+    id_usuario: Optional[int] = None
+    ingredientes: Optional[List[RecetaIngredienteUpdate]] = None
+    
+    class Config:
+        orm_mode = True
+
+class RecetaIngredienteDTO(BaseModel):
+    id: int
+    producto_id: int
+    materia_prima_id: int
+    cantidad_ingrediente: float
+    unidad_id: Optional[int] = None
+    
+    # Relaciones
+    materia_prima: Optional[MateriaPrimaDTO] = None
+    unidad: Optional[UnidadesMedidaSchemas] = None
+    
+    class Config:
+        orm_mode = True

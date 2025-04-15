@@ -1,5 +1,5 @@
 from .usuarios_schemas import Rol, SubRol, UsuarioBase, UsuarioCreate, UsuarioDTO, UsuarioLogin,UsuarioResponse,UsuarioUpdate
-from .productos_schemas import ProductoBase,ProductoDTO,ProductoCreate,EliminarProductoRequest, Tipo, Categoria, ProductoUpdate
+from .productos_schemas import ProductoBase,ProductoDTO,ProductoCreate,EliminarProductoRequest, Tipo, Categoria, ProductoUpdate, RecetaIngredienteDTO, RecetaIngredienteUpdate
 from .materia_schemas import MateriaPrimaBase,MateriaPrimaDTO,MateriaPrimaResponse, IngredienteSchema
 from .unidad_schema import UnidadesMedidaSchemas
 from .token_schemas import Token

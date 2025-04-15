@@ -1,10 +1,9 @@
-from sqlalchemy import Column, Integer, String, ForeignKey, TIMESTAMP,Numeric, Enum, DateTime
+from sqlalchemy import Column, Integer, String, ForeignKey, TIMESTAMP,Numeric, Enum, DateTime, BigInteger
 from sqlalchemy.orm import relationship
 from app.conexion import base
 from sqlalchemy.sql import func
 from app.schemas import TipoIDEnum
 
-#Modelo de clientes
 class Cliente(base):
     __tablename__ = "clientes"
 
@@ -14,5 +13,5 @@ class Cliente(base):
     numero_id = Column(String(20), unique=True, nullable=False)
     created_at = Column(TIMESTAMP, server_default=func.now())
 
- #relacion con pedidos
     pedidos = relationship("Pedido", back_populates="cliente")
+    facturas = relationship("Factura", back_populates="cliente")
