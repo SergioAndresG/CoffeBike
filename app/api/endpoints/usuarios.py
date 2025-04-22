@@ -197,7 +197,7 @@ async def obtner_usuario_jwt(token:str=Depends(oauth2_scheme), db: session =Depe
         usuario = db.query(Usuarios).filter(Usuarios.nombre == nombre_usuario).first()
         if not usuario:
             raise HTTPException(status_code=404,detail="No se encontro un usuario con ese nombre")
-        url_imagen = f"http://127.0.0.1:8000/usuarios/{usuario.ruta_imagen}"
+        url_imagen = f"https://coffebikefastapi-production.up.railway.app/usuarios/{usuario.ruta_imagen}"
         return {
             "id": usuario.id,
             "nombre": usuario.nombre,
@@ -282,7 +282,7 @@ async def agregar_usuario(
         rol=usuario.rol,
         subrol=usuario.subrol,
         correo=usuario.correo,
-        ruta_imagen=f"http://127.0.0.1:8000/{image_path}",
+        ruta_imagen=f"https://coffebikefastapi-production.up.railway.app/{image_path}",
     )
 
 @router.delete("/usuarios/eliminar")
@@ -343,7 +343,7 @@ async def actualizar_imagen_usuario(
         db.refresh(usuario_existente)
         
         # Preparar la URL completa de la imagen
-        imagen_url = f"http://127.0.0.1:8000/usuarios/{image_path}"
+        imagen_url = f"https://coffebikefastapi-production.up.railway.app/usuarios/{image_path}"
         
         return UsuarioResponse(
             id=usuario_existente.id,
