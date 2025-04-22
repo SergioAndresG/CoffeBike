@@ -19,6 +19,7 @@ import os
 from app.models.clientes import Cliente
 from app.api.endpoints.productos import send_email_task
 from app.schemas.alerta_schemas import EmailRequest
+import tempfile
  
 
 load_dotenv()  # Cargar las variables del archivo .env
@@ -240,13 +241,21 @@ async def agregar_usuario(
     
     # Procesar la imagen si se proporciona
     image_path = None
+    url_path = None 
     if file:
         try:
-            image_path = f"images/{file.filename}"
+            temp_dir = tempfile.gettempdir()
+            os.makedirs(os.path.join(temp_dir, "images"), exist_ok=True)
+            image_path = os.path.join(temp_dir, "images", file.filename)
+            
             with open(image_path, "wb") as f:
                 f.write(await file.read())
+                
+            # Para la URL, sigue usando la ruta relativa
+            url_path = f"images/{file.filename}"
         except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Error al guardar la imagen: {str(e)}")
+            print(f"Error: {str(e)}")
+            raise HTTPException(status_code=500, detail=str(e))
 
     # Crear el usuario
     usuario = Usuarios(
@@ -257,7 +266,7 @@ async def agregar_usuario(
         subrol=subrol,
         correo=correo,
         contraseña=contraseña,
-        ruta_imagen=image_path,  # Guardar la ruta de la imagen si existe
+        ruta_imagen=url_path,  # Guardar la ruta de la imagen si existe
     )
 
     if usuario:
@@ -282,7 +291,7 @@ async def agregar_usuario(
         rol=usuario.rol,
         subrol=usuario.subrol,
         correo=usuario.correo,
-        ruta_imagen=f"https://coffebikefastapi-production.up.railway.app/{image_path}",
+        ruta_imagen=f"https://coffebikefastapi-production.up.railway.app/{url_path}",
     )
 
 @router.delete("/usuarios/eliminar")
