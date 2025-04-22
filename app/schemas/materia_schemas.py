@@ -21,7 +21,7 @@ class MateriaPrimaBase(BaseModel):
     id: int
     nombre: str
     cantidad: float
-    ruta_imagen: str | None = None
+    ruta_imagen: Optional[str]
     stock_minimo: float
     fecha_ingreso: date
     fecha_vencimiento: date

@@ -14,19 +14,23 @@ from jwt import PyJWTError
 from datetime import timedelta, datetime
 from passlib.context import CryptContext
 from app.schemas.token_schemas import Token
+from dotenv import load_dotenv
 import os
 from app.models.clientes import Cliente
 from app.api.endpoints.productos import send_email_task
 from app.schemas.alerta_schemas import EmailRequest
+ 
+
+load_dotenv()  # Cargar las variables del archivo .env
 
 
 router = APIRouter()
 app = FastAPI()
 
-#configuracion para el JWT
-SECRET = "sapo_420"
-ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_HOURS = 24
+
+SECRET_KEY = os.getenv("SECRET_KEY")
+ALGORITHM = os.getenv("ALGORITHM")
+ACCESS_TOKEN_EXPIRE_HOURS = int(os.getenv("ACCESS_TOKEN_EXPIRE_HOURS", 24))
 
 #configuracion de hashing de contraseñas
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -37,7 +41,7 @@ def create_access_token(data:dict,expires_delta:timedelta=None):
     expire=datetime.utcnow()+(expires_delta if expires_delta else
                                timedelta(minutes=ACCESS_TOKEN_EXPIRE_HOURS))
     to_code.update({"exp":expire})
-    return jwt.encode(to_code, SECRET,algorithm=ALGORITHM)
+    return jwt.encode(to_code, SECRET_KEY,algorithm=ALGORITHM)
 
 #funcion para verificar las contraseñas hasheadas
 def verify_passwords(plain_pass, hash_pass):
@@ -45,7 +49,7 @@ def verify_passwords(plain_pass, hash_pass):
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],  # URL de tu frontend
+    allow_origins=["*"],  
     allow_credentials=True,
     allow_methods=["*"],  # Permitir todos los métodos (GET, POST, etc.)
     allow_headers=["*"],  # Permitir todos los encabezados
@@ -107,7 +111,7 @@ async def reset_password(db: session=Depends(get_db), email:str = Form(...), bac
 async def validate_reset_token(token: str = Body(..., embed=True)):
     try:
         # Decodificar token
-        payload = jwt.decode(token, SECRET, algorithms=[ALGORITHM])
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         email = payload.get("sub")
         token_type = payload.get("type")
         
@@ -130,7 +134,7 @@ async def reset_password(
 ):
     try:
         # Decodificar token
-        payload = jwt.decode(token, SECRET, algorithms=[ALGORITHM])
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         email = payload.get("sub")
         token_type = payload.get("type")
         
@@ -186,7 +190,9 @@ async def login(user_login: UsuarioLogin,db: session = Depends(get_db)):
 @router.get("/usuarios/me", response_model=UsuarioResponse)
 async def obtner_usuario_jwt(token:str=Depends(oauth2_scheme), db: session =Depends(get_db)):
     try:
-        payload = jwt.decode(token,SECRET,algorithms=[ALGORITHM])
+        
+        payload = jwt.decode(token,SECRET_KEY,algorithms=[ALGORITHM])
+        print(f"Decoded payload: {payload}")
         nombre_usuario = payload.get("sub")
         usuario = db.query(Usuarios).filter(Usuarios.nombre == nombre_usuario).first()
         if not usuario:
@@ -202,8 +208,8 @@ async def obtner_usuario_jwt(token:str=Depends(oauth2_scheme), db: session =Depe
             "correo": usuario.correo,
             "ruta_imagen": url_imagen,
         }
-    except PyJWTError:
-        raise HTTPException(status_code=401,detail="Token invalido")
+    except PyJWTError as e:
+        raise HTTPException(status_code=401,detail=f"Token invalido: {str(e)}")
 
 
 

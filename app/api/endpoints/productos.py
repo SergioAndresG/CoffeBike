@@ -30,7 +30,9 @@ from decimal import Decimal
 from app.schemas.alerta_schemas import EmailRequest
 from typing import List
 from app.api.endpoints.materia_prima import verificar_stock_bajo
+from dotenv import load_dotenv
 
+load_dotenv()
 
 app = FastAPI()
 
@@ -447,28 +449,33 @@ def obtener_producto_por_nombre(nombre: str, db: session = Depends(get_db)):
     return producto
 
 SCOPES = ['https://www.googleapis.com/auth/gmail.send']
+GOOGLE_OAUTH_CREDENTIALS = json.loads(os.getenv("GOOGLE_OAUTH_CREDENTIALS"))
+SCOPES = ['https://www.googleapis.com/auth/gmail.send']
 TOKEN_PATH = 'token.pickle'
-CREDENTIALS_PATH = 'credentials.json'
 
 def get_email_service():
     creds = None
-    #Intenta guardar las credenciales guardadas
     if os.path.exists(TOKEN_PATH):
         with open(TOKEN_PATH, 'rb') as token:
             creds = pickle.load(token)
 
-    #si no hay credenciales validas disponibles, deja que el usuario inicie sesion
     if not creds or not creds.valid:
         if creds and creds.expired and creds.refresh_token:
             creds.refresh(Request())
         else:
-            flow = InstalledAppFlow.from_client_secrets_file(CREDENTIALS_PATH,SCOPES)
-            creds = flow.run_local_server(port=0)
-
-        #Guarda las credenciales para la proxima vez 
+            # Guarda las credenciales JSON en un archivo temporal
+            import tempfile, json
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".json") as temp_file:
+                json.dump(GOOGLE_OAUTH_CREDENTIALS, temp_file)
+                temp_file.flush()
+                flow = InstalledAppFlow.from_client_secrets_file(temp_file.name, SCOPES)
+                creds = flow.run_local_server(port=0)
+        
         with open(TOKEN_PATH, 'wb') as token:
             pickle.dump(creds, token)
+
     return build('gmail', 'v1', credentials=creds)
+
 
 def create_message(sender, to, subject, message_text, attachment_path=None):
     message=MIMEMultipart()

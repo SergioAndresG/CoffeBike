@@ -1,9 +1,11 @@
 from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
+import os
 
 # Definimos una URL con la cual vamos a ingresar a la base de datos
 URL_DB = "mysql+mysqlconnector://root:larata420@localhost:3306/cafeteriastockF"
+#URL_DB = os.environ.get("DATABASE_URL", "mysql+mysqlconnector://root:larata420@db:3306/cafeteriastockF")
 # Creamos el motor de la base de datos con la URL utilizada
 crear = create_engine(URL_DB)
 

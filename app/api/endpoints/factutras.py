@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Query
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session, joinedload
 from app.conexion import get_db
@@ -9,6 +9,7 @@ from app.models.detalle_factura import DetalleFactura
 from app.models.productos import Productos  
 from datetime import date
 from sqlalchemy import func, or_
+from datetime import datetime, timedelta
 
 
 router_facturas = APIRouter(prefix="/facturas", tags=["Facturas"])
@@ -75,3 +76,74 @@ def get_todas_facturas(db: Session = Depends(get_db)):
             status_code=500,
             detail=f"Error al obtener facturas: {str(e)}"
         )
+    
+@router_facturas.get("/por-fecha")
+def get_facturas_por_fecha(
+    fecha: str = Query(..., description="Fecha en formato YYYY-MM-DD"),
+    db: Session = Depends(get_db)
+):
+    try:
+        # Convertir string a datetime
+        try:
+            fecha_obj = datetime.strptime(fecha, "%Y-%m-%d")
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Formato de fecha inválido. Usa YYYY-MM-DD.")
+        
+        # Calcular el rango de tiempo para ese día
+        fecha_inicio = datetime.combine(fecha_obj.date(), datetime.min.time())
+        fecha_fin = datetime.combine(fecha_obj.date(), datetime.max.time())
+
+        # Buscar facturas dentro del rango de esa fecha
+        facturas = db.query(Factura)\
+            .options(
+                joinedload(Factura.cliente),
+                joinedload(Factura.detalles).joinedload(DetalleFactura.producto),
+                joinedload(Factura.pedido)
+            )\
+            .filter(Factura.fecha_compra >= fecha_inicio, Factura.fecha_compra <= fecha_fin)\
+            .order_by(Factura.fecha_compra.desc())\
+            .all()
+
+        if not facturas:
+            return []
+
+        result = []
+        for factura in facturas:
+            total = factura.precio_total or 0.0
+            if not total and factura.detalles:
+                total = sum(det.subtotal or 0 for det in factura.detalles)
+
+            factura_data = {
+                "id": factura.id,
+                "fecha_compra": factura.fecha_compra.isoformat() if factura.fecha_compra else None,
+                "precio_total": float(total),
+                "cliente": {
+                    "id": getattr(factura.cliente, "id", None),
+                    "nombre": getattr(factura.cliente, "nombre", "Cliente no especificado"),
+                    "tipo_id": getattr(factura.cliente, "tipo_id", None),
+                    "numero_id": getattr(factura.cliente, "numero_id", None)
+                } if factura.cliente else None,
+                "pedido": {
+                    "id": factura.pedido.id,
+                    "estado": factura.pedido.estado,
+                    "fecha": factura.pedido.fecha.isoformat() if factura.pedido.fecha else None
+                } if factura.pedido else None,
+                "productos": [
+                    {
+                        "id": detalle.producto.id,
+                        "nombre": detalle.producto.nombre,
+                        "cantidad": detalle.cantidad,
+                        "precio_unitario": float(detalle.precio_unitario),
+                        "subtotal": float(detalle.subtotal)
+                    }
+                    for detalle in factura.detalles if detalle.producto
+                ] if factura.detalles else []
+            }
+
+            result.append(factura_data)
+
+        return result
+
+    except Exception as e:
+        print(f"Error en /facturas/por-fecha: {str(e)}")
+        raise HTTPException(status_code=500, detail="Error al buscar facturas por fecha.")
