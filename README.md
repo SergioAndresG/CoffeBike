@@ -25,11 +25,11 @@
 - [✨ Características Principales](#-características-principales)
 - [🏗️ Arquitectura del Sistema](#️-arquitectura-del-sistema)
 - [👥 Sistema de Roles](#-sistema-de-roles)
-- [🔄 Flujo de Pedidos](#-flujo-de-pedidos)
-- [📊 Sistema de Alertas](#-sistema-de-alertas)
+- [🔄 Flujo de Pedidos](#-flujo-del-programa)
 - [🛠️ Stack Tecnológico](#️-stack-tecnológico)
 - [📁 Estructura del Proyecto](#-estructura-del-proyecto)
 - [🐳 Contenerización](#-contenerización)
+- [👥 Equipo de Desarrollo](#-equipo-de-desarrollo)
 
 ---
 
@@ -243,7 +243,7 @@ Informes semanales y mensuales generados automáticamente
 
 ---
 
-## 🔄 Flujo de Pedidos
+## 🔄 Flujo de el programa
 
 ### 1. Cliente realiza pedido
 Cliente escanea QR → Selecciona productos → Confirma orden
@@ -261,32 +261,8 @@ Empleado marca como "Preparando" → Cliente es notificado
 Sistema descuenta stock → Registra materias primas usadas → Estado: "Completado"
 
 ### 6. Pago y facturación
-Cliente paga en caja → Sistema genera factura PDF → Estado: "Pagado"
+Cliente paga en caja → Sistema genera factura PDF
 
----
-
-## 📊 Sistema de Alertas
-
-### Tipos de Alertas
-
-#### ⚠️ Alertas de Vencimiento
-
-**Productos:**
-**Materias Primas:**
-```python
-# Similar a productos, verifica materias primas
-# Alertas configurables: 3, 5 o 7 días antes
-```
-
-#### ⚠️ Alertas de Stock
-
-**Stock Bajo:**
-
-**Stock Crítico:**
-
-#### 📊 Alertas de Reportes
-
----
 
 ## 🛠️ Stack Tecnológico
 
@@ -530,16 +506,17 @@ CMD ["nginx", "-g", "daemon off;"]
 
 ## 📊 Características Técnicas Destacadas
 
-### 1. Sistema de Polling Inteligente
+### Sistema de Tiempo Real
+Polling inteligente cada 3 segundos para actualizar panel de pedidos sin necesidad de WebSockets, optimizando recursos del servidor.
 
+### Trazabilidad Completa
+Registro detallado de materias primas utilizadas por cada producto vendido, permitiendo análisis preciso de costos y rentabilidad.
 
-### 2. Trazabilidad de Materias Primas
-
-```python
-# Al completar un pedido, se registra qué materias primas se usaron
-```
-
-### 3. Reportes Automatizados
+### Automatización de Reportes
+APScheduler ejecuta tareas programadas:
+- **Lunes 9:00 AM** → Reporte semanal de ventas
+- **Día 1 del mes 9:00 AM** → Reporte mensual completo
+- **Diariamente 8:00 AM** → Verificación de vencimientos
 
 
 ## 💼 Capacidades Demostradas
@@ -561,7 +538,6 @@ Este proyecto demuestra competencias en:
 - 🔹 Polling para actualizaciones en tiempo real
 - 🔹 Generación de PDFs en cliente (jsPDF)
 - 🔹 UX/UI con múltiples roles
-- 🔹 Componentes reutilizables y modulares
 
 ### Arquitectura
 - 🔹 Separación de responsabilidades (backend/frontend)
@@ -615,7 +591,7 @@ Este proyecto demuestra competencias en:
 
 ## 📊 Especificaciones Técnicas
 
-**Desarrollado como proyecto de portfolio**
+**Desarrollado como proyecto de Grado**
 
 - ✅ Sistema completamente funcional
 - ✅ Arquitectura escalable y modular
@@ -634,6 +610,38 @@ Este proyecto demuestra competencias en:
 <p align="center">
   <sub>Plataforma que integra gestión de inventario, pedidos en tiempo real, facturación y reportería automatizada</sub>
 </p>
+
+## 👥 Equipo de Desarrollo
+
+Este proyecto fue desarrollado colaborativamente por:
+
+<table>
+  <tr>
+    <td align="center">
+      <a href="https://github.com/SergioAndresG">
+        <img src="https://github.com/SergioAndresG.png" width="100px;" alt="Sergio García"/>
+        <br />
+        <sub><b>Sergio Andrés García</b></sub>
+      </a>
+      <br />
+      <sub>Full-Stack Developer</sub>
+      <br />
+      💻 📊 🎨 📖
+    </td>
+    <td align="center">
+      <a href="https://github.com/camilaaven">
+        <img src="https://github.com/camilaaven" width="100px;" alt="Camila"/>
+        <br />
+        <sub><b>Leidy Johanna Bolivar Gonzalez</b></sub>
+      </a>
+      <br />
+      <sub>Full-Stack Developer</sub>
+      <br />
+      💻 🎨 🐛 📖
+    </sub>
+    </td>
+  </tr>
+</table>
 
 <p align="center">
   <a href="#-tabla-de-contenidos">⬆️ Volver arriba</a>
