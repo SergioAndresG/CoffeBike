@@ -1,0 +1,40 @@
+/* main.css */
+@import url('https://fonts.googleapis.com/css2?family=Jura:wght@700&display=swap');
+
+/* estilo de el título de las alertas */
+.swal2-title {
+    font-family: 'Jura', sans-serif;
+    font-size: 24px;
+    font-weight: bold;
+    color: #d9ab23;
+    text-align: center;
+    margin-bottom: 10px;
+  }
+  
+  /* estilo de el texto */
+  .swal2-html-container {
+    font-family: 'Jura', sans-serif;
+    font-size: 18px;
+    color: #8C3420;
+    line-height: 1.5;
+    text-align: left;
+    z-index: 9999;
+  }
+  
+  /* estilo de el botón de confirmación */
+  .swal2-confirm {
+    font-family: 'Jura', monospace;
+    font-size: 16px;
+    background-color: #d9ab23;
+    color: white;
+    padding: 10px 20px;
+    border-radius: 5px;
+    border: none;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+  }
+  
+  .swal2-confirm:hover {
+    background-color: #c89600;
+  }
+  

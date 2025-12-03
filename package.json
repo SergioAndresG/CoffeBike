@@ -1,0 +1,6 @@
+{
+  "dependencies": {
+    "jspdf": "^3.0.0",
+    "vue-toastification": "^1.7.14"
+  }
+}
