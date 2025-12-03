@@ -1,7 +1,4 @@
 .env
-credentials.json
-token.pickle
-*.pickle
 
 # Credenciales sensibles
 credentials.json
@@ -16,3 +13,4 @@ __pycache__/
 
 # Archivos con credenciales
 vista.py
+*.pyc
