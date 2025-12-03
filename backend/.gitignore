@@ -2,3 +2,17 @@
 credentials.json
 token.pickle
 *.pickle
+
+# Credenciales sensibles
+credentials.json
+token.pickle
+*.pickle
+
+# Archivos compilados de Python (pueden contener secretos)
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Archivos con credenciales
+vista.py
