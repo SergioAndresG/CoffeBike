@@ -1,4 +1,4 @@
 .env
-credentials.jsoncredentials.json
+credentials.json
 token.pickle
 *.pickle
