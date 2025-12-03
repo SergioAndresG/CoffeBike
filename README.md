@@ -243,7 +243,7 @@ Informes semanales y mensuales generados automáticamente
 
 ---
 
-## 🔄 Flujo de Pedidos (Tiempo Real)
+## 🔄 Flujo de Pedidos
 
 ### 1. Cliente realiza pedido
 Cliente escanea QR → Selecciona productos → Confirma orden
