@@ -630,9 +630,9 @@ Este proyecto fue desarrollado colaborativamente por:
     </td>
     <td align="center">
       <a href="https://github.com/camilaaven">
-        <img src="https://github.com/camilaaven" width="100px;" alt="Camila"/>
+        <img src="https://github.com/camilaaven.png" width="100px;" alt="Camila"/>
         <br />
-        <sub><b>Leidy Johanna Bolivar Gonzalez</b></sub>
+        <sub><b>Camila Bernal Avendaño</b></sub>
       </a>
       <br />
       <sub>Full-Stack Developer</sub>
